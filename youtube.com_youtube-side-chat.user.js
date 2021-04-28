@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Youtube Side Chat
-// @namespace    http://tampermonkey.net/
-// @version      0.3
-// @description  try to take over the world!
+// @namespace    https://github.com/hungcat/userscripts/
+// @version      0.4
+// @description  my livechat window
 // @author       hungcat
 // @connect-src  youtube.com
 // @match        *://www.youtube.com/*
@@ -12,6 +12,9 @@
 // @grant        GM_addStyle
 // @grant        GM_setValue
 // @grant        GM_getValue
+// @updateURL    https://github.com/hungcat/userscripts/raw/main/youtube.com_youtube-side-chat.user.js
+// @downloadURL  https://github.com/hungcat/userscripts/raw/main/youtube.com_youtube-side-chat.user.js
+// @supportURL   https://github.com/hungcat/userscripts/
 // ==/UserScript==
 
 (function(d, Util, YT) {
