@@ -17,9 +17,12 @@
 // @supportURL   https://github.com/hungcat/userscripts/
 // ==/UserScript==
 
-(function(d, Util, YT) {
+(function(d, Util, YT, cssText) {
     'use strict';
 
+    // css
+    GM_addStyle(cssText);
+    
     d.addEventListener('yt-navigate-finish', e => {
         //console.log('youtube navigation finished');
         Util.tryTask(playerReady, YT.getAPI, 1000, 30);
@@ -301,11 +304,9 @@
         isLive: function() { return d.getElementsByClassName('ytp-live').length > 0; },
         isFullscreen: function() { return d.fullscreen; },
     }
-})(document));
-
-
-// css
-GM_addStyle(
+})(document),
+    // css
+   
     ':root { --ysc-chat-top: 0; --ysc-chat-height: auto; --ysc-chat-width: auto; --ysc-chat-opacity: 1; }' +
 
     'ytd-watch-flexy[theater] .ysc-chat-style { position: absolute; padding: 0; margin: 0 !important; border: 0 !important; opacity: var(--ysc-chat-opacity);' +
@@ -344,6 +345,8 @@ GM_addStyle(
     '.select-items div,.select-selected{color:#fff;padding: 8px 16px;border:1px solid transparent;border-color:transparent transparent rgba(0,0,0,.1) transparent;cursor:pointer}' +
     '.select-items{position:absolute;background-color:#1e90ff;bottom:100%;left:0;right:0;}.select-hide{display:none}.same-as-selected,.select-items div:hover{background-color:rgba(0,0,0,.1)}'
 );
+
+
 //     window.addEventListener('pushstate', e => { console.log('pushstate event fired'); });
 //     window.addEventListener('popstate', e => { console.log('popstate event fired'); });
 //     window.addEventListener('beforeunload', e => { console.log('beforeunload event fired'); });
@@ -354,5 +357,5 @@ GM_addStyle(
 //             console.log('progress bar has transmitted');
 //         }
 //     });
-    //document.addEventListener('yt-navigate-start', e => { console.log('yt-navigate-start fired'); });
-    //document.addEventListener('yt-navigate-finish', e => { console.log('yt-navigate-finish fired'); });
+//document.addEventListener('yt-navigate-start', e => { console.log('yt-navigate-start fired'); });
+//document.addEventListener('yt-navigate-finish', e => { console.log('yt-navigate-finish fired'); });
