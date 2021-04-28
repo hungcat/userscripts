@@ -260,7 +260,7 @@
     function getScrollTop() { return d.body.scrollTop || d.documentElement.scrollTop; }
 
     const task_dict = {};
-    function tryTask() {
+    function tryTask(/* task, condition, interval, retry_limit */) {
         let retry_count = 0;
         const task = checkType(arguments[0], 'function') ? arguments[0] : (() => {}),
               condition = checkType(arguments[1], 'function') ? arguments[1] : (() => true),
