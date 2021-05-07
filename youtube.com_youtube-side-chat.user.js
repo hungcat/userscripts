@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Youtube Side Chat
 // @namespace    https://github.com/hungcat/userscripts/
-// @version      0.4.1
+// @version      0.4.2
 // @description  my livechat window
 // @author       hungcat
 // @connect-src  youtube.com
@@ -98,7 +98,7 @@
         }
     }
 
-    function updateChatHeight() {
+    function updateChatSize() {
         const api = YT.getAPI(), chat = YT.getChat(), bottom = d.getElementsByClassName('ytp-chrome-bottom')[0];
         if (chat && chat.classList.contains('ysc-chat-style') && api && bottom) {
             const player_rect = api.getBoundingClientRect(),
@@ -106,13 +106,14 @@
                   cs = chat.style;
             cs.setProperty('--ysc-chat-top', (player_rect.top + Util.getScrollTop()) + 'px');
             cs.setProperty('--ysc-chat-height', (player_rect.height - bottom_rect.height) + 'px');
+            cs.setProperty('--ysc-chat-width', GM_getValue('YSC_CHAT_WINDOW_WIDTH', 264) + 'px');
         }
     }
-    window.addEventListener('resize', updateChatHeight, { passive: true });
+    window.addEventListener('resize', updateChatSize, { passive: true });
 
     const last_selected = d.getElementsByClassName('same-as-selected');
     function updateChatWindow() {
-        updateChatHeight();
+        updateChatSize();
         if (last_selected[0] && Util.checkType(last_selected[0].click, 'function')) last_selected[0].click();
     }
     d.addEventListener('fullscreenchange', updateChatWindow);
@@ -128,7 +129,7 @@
                 c.remove('ysc-right-chat');
                 c.add('ysc-left-chat');
             }
-            updateChatHeight();
+            updateChatSize();
         }
     }
     function setOpacity(opacity) {
@@ -311,7 +312,7 @@
 })(document),
     // css
 
-    ':root { --ysc-chat-top: 0; --ysc-chat-height: auto; --ysc-chat-width: 264px; --ysc-chat-opacity: 1; }' +
+    ':root { --ysc-chat-top: 0; --ysc-chat-height: auto; --ysc-chat-width: auto; --ysc-chat-opacity: 1; }' +
 
     'ytd-watch-flexy[theater] .ysc-chat-style { position: absolute; padding: 0; margin: 0 !important; border: 0 !important; opacity: var(--ysc-chat-opacity);' +
     ' top: var(--ysc-chat-top) !important; height: var(--ysc-chat-height) !important; width: var(--ysc-chat-width) !important; min-height: 100px !important; }' +
