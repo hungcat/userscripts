@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Youtube Side Chat
 // @namespace    https://github.com/hungcat/userscripts/
-// @version      0.4
+// @version      0.4.1
 // @description  my livechat window
 // @author       hungcat
 // @connect-src  youtube.com
