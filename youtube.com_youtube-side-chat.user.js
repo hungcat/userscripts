@@ -22,7 +22,7 @@
 
     // css
     GM_addStyle(cssText);
-    
+
     d.addEventListener('yt-navigate-finish', e => {
         //console.log('youtube navigation finished');
         Util.tryTask(playerReady, YT.getAPI, 1000, 30);
@@ -224,7 +224,11 @@
                     target.classList.add('is-resizing');
                 },
             }));
-            target.style.setProperty('--ysc-chat-width', GM_setValue('YSC_CHAT_WINDOW_WIDTH', getComputedStyle(target).width) + 'px');
+            // target.style.setProperty('--ysc-chat-width', GM_setValue('YSC_CHAT_WINDOW_WIDTH', getComputedStyle(target).width) + 'px');
+
+            // 内部iframe内chatウィンドウの幅の最小を0に
+            // d.querySelector('#chatframe') === target.children[0]
+            target.children[0].contentWindow.document.head.insertAdjacentHTML('beforeend','<style>yt-live-chat-app{min-width:0}</style>')
         }
     }
 
@@ -306,8 +310,8 @@
     }
 })(document),
     // css
-   
-    ':root { --ysc-chat-top: 0; --ysc-chat-height: auto; --ysc-chat-width: auto; --ysc-chat-opacity: 1; }' +
+
+    ':root { --ysc-chat-top: 0; --ysc-chat-height: auto; --ysc-chat-width: 264px; --ysc-chat-opacity: 1; }' +
 
     'ytd-watch-flexy[theater] .ysc-chat-style { position: absolute; padding: 0; margin: 0 !important; border: 0 !important; opacity: var(--ysc-chat-opacity);' +
     ' top: var(--ysc-chat-top) !important; height: var(--ysc-chat-height) !important; width: var(--ysc-chat-width) !important; min-height: 100px !important; }' +
