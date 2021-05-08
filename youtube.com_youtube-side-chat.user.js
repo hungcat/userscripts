@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Youtube Side Chat
 // @namespace    https://github.com/hungcat/userscripts/
-// @version      0.4.2
+// @version      0.4.3
 // @description  my livechat window
 // @author       hungcat
 // @connect-src  youtube.com
@@ -35,17 +35,20 @@
     function playerReady() {
         const api = YT.getAPI();
         //console.log('api:', api);
-        if (api && !YT.isLive()) {
-            const video = YT.getVideo();
-            const channelID = YT.getChannelID();
-            if (video && !video.dataset.YSC_SETRATECHANGE && channelID) {
-                const playbackRateKey = 'YSC_PLAYBACKRATE_' + channelID;
-                video.dataset.YSC_SETRATECHANGE = true;
-                api.setPlaybackRate(GM_getValue(playbackRateKey, 2));
-                video.addEventListener('ratechange', function(e) {
-                    //console.log('ratechange');
-                    GM_setValue(playbackRateKey, this.playbackRate);
-                });
+        if (api) {
+            api.setPlaybackRate(YT.isLive() ? 1 : GM_getValue(YT.getPlaybackRateKey(), 2));
+            //console.log('set playback rate to ' + api.getPlaybackRate());
+            if (!YT.isLive()) {
+                const video = YT.getVideo();
+                const channelID = YT.getChannelID();
+                //console.log('YSC_PLAYBACKRATE: ' + video.dataset.YSC_SETRATECHANGE)
+                if (video && !video.dataset.YSC_SETRATECHANGE) {
+                    video.dataset.YSC_SETRATECHANGE = true;
+                    video.addEventListener('ratechange', function(e) {
+                        //console.log('ratechanged', YT.getPlaybackRateKey(), this.playbackRate);
+                        GM_setValue(YT.getPlaybackRateKey(), this.playbackRate);
+                    });
+                }
             }
         }
         Util.tryTask(initChatWindow, YT.getChat, 1000, 30);
@@ -232,9 +235,6 @@
             target.children[0].contentWindow.document.head.insertAdjacentHTML('beforeend','<style>yt-live-chat-app{min-width:0}</style>')
         }
     }
-
-
-
 })(document, (function(d) {
     const toString = Object.prototype.toString;
     function checkType(obj, type) {
@@ -294,6 +294,7 @@
 
     return { checkType, createElement, getScrollTop, tryTask };
 })(document), (function(d) {
+    const _getChannelID = function(t) { return (t = d.querySelector('ytd-video-owner-renderer > a')) && (t = t.href.match(/[^/]+$/)) && t[0] };
     return {
         getAPI: function() { return d.getElementById('movie_player'); },
         getVideo: function() { return d.getElementsByTagName('video')[0]; },
@@ -302,7 +303,8 @@
             return (t = d.getElementById('chatframe')) && t.contentDocument.getElementsByClassName('yt-live-chat-item-list-renderer')[5];
         },
         getPageManager: function() { return d.getElementsByClassName('ytd-page-manager')[0]; },
-        getChannelID: function(t) { return (t = d.querySelector('ytd-video-owner-renderer > a')) && (t = t.href.match(/[^/]+$/)) && t[0] },
+        getChannelID: _getChannelID,
+        getPlaybackRateKey: function(t) { return (t = _getChannelID()) && ('YSC_PLAYBACKRATE_' + t) },
 
         isTheater: function(t) { return (t = d.getElementsByTagName('ytd-watch-flexy')[0]) && t.theater; },
         isMiniPlayer: function(t) { return (t = d.getElementsByTagName('ytd-miniplayer')[0]) && t.active; },
