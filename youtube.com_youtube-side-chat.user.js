@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Youtube Side Chat
 // @namespace    https://github.com/hungcat/userscripts/
-// @version      0.4.3
+// @version      0.4.5
 // @description  my livechat window
 // @author       hungcat
 // @connect-src  youtube.com
@@ -50,6 +50,36 @@
                     });
                 }
             }
+
+            function addChatStyle() {
+                const chatframe = d.querySelector('#chatframe')
+                if (chatframe && chatframe.contentDocument.head.getElementsByClassName('ysc-chat-style').length === 0 && chatframe.contentDocument.head.children.length !== 0) {
+                    chatframe.contentDocument.head.insertAdjacentElement(
+                        'beforeend',
+                        Util.createElement('style', {
+                            'class': 'ysc-chat-style',
+                            'innerText': 'yt-live-chat-app{min-width:0}'
+                        })
+                    )
+                }
+            }
+
+            // 内部iframe内chatウィンドウの幅の最小を-1に
+            //d.querySelector('#chatframe').contentDocument.head.insertAdjacentHTML('beforeend','<style>yt-live-chat-app{min-width:0}</style>')
+            const mo = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    for (const node of mutation.addedNodes) {
+                        // ここでブロック判定
+                        //console.log(node)
+                        Util.tryTask(addChatStyle, () => d.querySelector('#chatframe'), 1000, 30)
+                    }
+                });
+            })
+            Util.tryTask(() => {
+                mo.observe(d.querySelector('#show-hide-button'), { childList: true, subtree: true })
+                addChatStyle()
+            }, () => (d.querySelector('#chatframe') && d.querySelector('#show-hide-button')), 1000, 30)
+
         }
         Util.tryTask(initChatWindow, YT.getChat, 1000, 30);
     }
@@ -228,11 +258,6 @@
                     target.classList.add('is-resizing');
                 },
             }));
-            // target.style.setProperty('--ysc-chat-width', GM_setValue('YSC_CHAT_WINDOW_WIDTH', getComputedStyle(target).width) + 'px');
-
-            // 内部iframe内chatウィンドウの幅の最小を0に
-            // d.querySelector('#chatframe') === target.children[0]
-            target.children[0].contentWindow.document.head.insertAdjacentHTML('beforeend','<style>yt-live-chat-app{min-width:0}</style>')
         }
     }
 })(document, (function(d) {
@@ -248,7 +273,7 @@
             const o = options[key];
             if (key === 'children' && Array.isArray(o)) {
                 o.forEach(e => { elm.appendChild(e); });
-            } else if (/^(innerHTML|value)$/.test(key)) {
+            } else if (/^(value|innerHTML|innerText|textContent)$/.test(key)) {
                 elm[key] = o;
             } else if (/^on/.test(key)) {
                 if (checkType(o, 'function')) {
@@ -294,7 +319,10 @@
 
     return { checkType, createElement, getScrollTop, tryTask };
 })(document), (function(d) {
-    const _getChannelID = function(t) { return (t = d.querySelector('ytd-video-owner-renderer > a')) && (t = t.href.match(/[^/]+$/)) && t[0] };
+    /**
+     * @returns {string} channel ID
+     */
+    function _getChannelID(t) { return (t = d.querySelector('ytd-video-owner-renderer > a')) && (t = t.href.match(/[^/]+$/)) && t[-1] };
     return {
         getAPI: function() { return d.getElementById('movie_player'); },
         getVideo: function() { return d.getElementsByTagName('video')[0]; },
