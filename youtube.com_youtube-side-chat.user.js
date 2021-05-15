@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Youtube Side Chat
 // @namespace    https://github.com/hungcat/userscripts/
-// @version      0.4.5
+// @version      0.4.6
 // @description  my livechat window
 // @author       hungcat
 // @connect-src  youtube.com
@@ -36,21 +36,20 @@
         const api = YT.getAPI();
         //console.log('api:', api);
         if (api) {
+            console.log('channel playbackrate', YT.getPlaybackRateKey(), this.playbackRate);
             api.setPlaybackRate(YT.isLive() ? 1 : GM_getValue(YT.getPlaybackRateKey(), 2));
-            //console.log('set playback rate to ' + api.getPlaybackRate());
-            if (!YT.isLive()) {
-                const video = YT.getVideo();
-                const channelID = YT.getChannelID();
-                //console.log('YSC_PLAYBACKRATE: ' + video.dataset.YSC_SETRATECHANGE)
-                if (video && !video.dataset.YSC_SETRATECHANGE) {
-                    video.dataset.YSC_SETRATECHANGE = true;
-                    video.addEventListener('ratechange', function(e) {
-                        //console.log('ratechanged', YT.getPlaybackRateKey(), this.playbackRate);
-                        GM_setValue(YT.getPlaybackRateKey(), this.playbackRate);
-                    });
-                }
+            console.log('set playback rate to ' + api.getPlaybackRate());
+            const video = YT.getVideo();
+            //console.log('YSC_PLAYBACKRATE: ' + video.dataset.YSC_SETRATECHANGE)
+            if (video && !video.dataset.YSC_SETRATECHANGE) {
+                video.dataset.YSC_SETRATECHANGE = true;
+                video.addEventListener('ratechange', function(e) {
+                    console.log('ratechanged', YT.isLive(), YT.getPlaybackRateKey(), this.playbackRate);
+                    if (!YT.isLive()) GM_setValue(YT.getPlaybackRateKey(), this.playbackRate);
+                });
             }
 
+            // 内部iframe内chatウィンドウの幅の最小を0に
             function addChatStyle() {
                 const chatframe = d.querySelector('#chatframe')
                 if (chatframe && chatframe.contentDocument.head.getElementsByClassName('ysc-chat-style').length === 0 && chatframe.contentDocument.head.children.length !== 0) {
@@ -61,21 +60,19 @@
                             'innerText': 'yt-live-chat-app{min-width:0}'
                         })
                     )
+                    console.log('added chat style')
                 }
             }
 
-            // 内部iframe内chatウィンドウの幅の最小を-1に
-            //d.querySelector('#chatframe').contentDocument.head.insertAdjacentHTML('beforeend','<style>yt-live-chat-app{min-width:0}</style>')
             const mo = new MutationObserver((mutations) => {
                 mutations.forEach((mutation) => {
                     for (const node of mutation.addedNodes) {
-                        // ここでブロック判定
-                        //console.log(node)
                         Util.tryTask(addChatStyle, () => d.querySelector('#chatframe'), 1000, 30)
                     }
                 });
             })
             Util.tryTask(() => {
+                console.log('try adding chat style')
                 mo.observe(d.querySelector('#show-hide-button'), { childList: true, subtree: true })
                 addChatStyle()
             }, () => (d.querySelector('#chatframe') && d.querySelector('#show-hide-button')), 1000, 30)
