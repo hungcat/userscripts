@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Youtube Side Chat
 // @namespace    https://github.com/hungcat/userscripts/
-// @version      0.4.6
+// @version      0.4.7
 // @description  my livechat window
 // @author       hungcat
 // @connect-src  youtube.com
@@ -36,15 +36,15 @@
         const api = YT.getAPI();
         //console.log('api:', api);
         if (api) {
-            console.log('channel playbackrate', YT.getPlaybackRateKey(), this.playbackRate);
+            // console.log('channel playbackrate', YT.getPlaybackRateKey(), GM_getValue(YT.getPlaybackRateKey()));
             api.setPlaybackRate(YT.isLive() ? 1 : GM_getValue(YT.getPlaybackRateKey(), 2));
-            console.log('set playback rate to ' + api.getPlaybackRate());
+            // console.log('set playback rate to ' + api.getPlaybackRate());
             const video = YT.getVideo();
             //console.log('YSC_PLAYBACKRATE: ' + video.dataset.YSC_SETRATECHANGE)
             if (video && !video.dataset.YSC_SETRATECHANGE) {
                 video.dataset.YSC_SETRATECHANGE = true;
                 video.addEventListener('ratechange', function(e) {
-                    console.log('ratechanged', YT.isLive(), YT.getPlaybackRateKey(), this.playbackRate);
+                    // console.log('ratechanged', YT.isLive(), YT.getPlaybackRateKey(), this.playbackRate);
                     if (!YT.isLive()) GM_setValue(YT.getPlaybackRateKey(), this.playbackRate);
                 });
             }
@@ -60,7 +60,7 @@
                             'innerText': 'yt-live-chat-app{min-width:0}'
                         })
                     )
-                    console.log('added chat style')
+                    // console.log('added chat style')
                 }
             }
 
@@ -72,7 +72,7 @@
                 });
             })
             Util.tryTask(() => {
-                console.log('try adding chat style')
+                // console.log('try adding chat style')
                 mo.observe(d.querySelector('#show-hide-button'), { childList: true, subtree: true })
                 addChatStyle()
             }, () => (d.querySelector('#chatframe') && d.querySelector('#show-hide-button')), 1000, 30)
@@ -319,7 +319,7 @@
     /**
      * @returns {string} channel ID
      */
-    function _getChannelID(t) { return (t = d.querySelector('ytd-video-owner-renderer > a')) && (t = t.href.match(/[^/]+$/)) && t[-1] };
+    function _getChannelID(t) { return (t = d.querySelector('ytd-video-owner-renderer > a')) && (t = t.href.match(/[^/]+$/)) && t[0] };
     return {
         getAPI: function() { return d.getElementById('movie_player'); },
         getVideo: function() { return d.getElementsByTagName('video')[0]; },
