@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Youtube Side Chat
 // @namespace    https://github.com/hungcat/userscripts/
-// @version      0.4.7
+// @version      0.4.8
 // @description  my livechat window
 // @author       hungcat
 // @connect-src  youtube.com
@@ -136,6 +136,7 @@
                   cs = chat.style;
             cs.setProperty('--ysc-chat-top', (player_rect.top + Util.getScrollTop()) + 'px');
             cs.setProperty('--ysc-chat-height', (player_rect.height - bottom_rect.height) + 'px');
+            //console.log('width: "', cs.getPropertyValue('--ysc-chat-width'), '","', GM_getValue('YSC_CHAT_WINDOW_WIDTH'), '"');
             cs.setProperty('--ysc-chat-width', GM_getValue('YSC_CHAT_WINDOW_WIDTH', 264) + 'px');
         }
     }
@@ -249,7 +250,7 @@
                         e.stopPropagation();
                         window.removeEventListener('mousemove', resize_handler);
                         target.classList.remove('is-resizing');
-                        GM_setValue('YSC_CHAT_WINDOW_WIDTH', getComputedStyle(target).width)
+                        GM_setValue('YSC_CHAT_WINDOW_WIDTH', parseFloat(getComputedStyle(target).width))
                     }, { once: true, passive: true });
 
                     target.classList.add('is-resizing');
