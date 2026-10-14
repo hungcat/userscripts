@@ -1,11 +1,11 @@
 // ==UserScript==
 // @name         Youtube Side Chat
 // @namespace    https://github.com/hungcat/userscripts/
-// @version      0.4.8
+// @version      0.4.9
 // @description  my livechat window
 // @author       hungcat
-// @connect-src  youtube.com
 // @match        *://www.youtube.com/*
+// @match        *://www.google.com/search*
 // @exclude      *://www.youtube.com/tv*
 // @exclude      *://www.youtube.com/embed/*
 // @exclude      *://www.youtube.com/live_chat*
@@ -17,9 +17,12 @@
 // @supportURL   https://github.com/hungcat/userscripts/
 // ==/UserScript==
 
-(function(d, Util, YT, cssText) {
+console.log('hello');
+
+(function (d, Util, YT, cssText) {
     'use strict';
 
+    console.log('hello wprld');
     // css
     GM_addStyle(cssText);
 
@@ -33,6 +36,9 @@
 
     // do at the end of function
     function playerReady() {
+
+        Util.test(YT);
+
         const api = YT.getAPI();
         //console.log('api:', api);
         if (api) {
@@ -43,42 +49,47 @@
             //console.log('YSC_PLAYBACKRATE: ' + video.dataset.YSC_SETRATECHANGE)
             if (video && !video.dataset.YSC_SETRATECHANGE) {
                 video.dataset.YSC_SETRATECHANGE = true;
-                video.addEventListener('ratechange', function(e) {
+                video.addEventListener('ratechange', function (e) {
                     // console.log('ratechanged', YT.isLive(), YT.getPlaybackRateKey(), this.playbackRate);
                     if (!YT.isLive()) GM_setValue(YT.getPlaybackRateKey(), this.playbackRate);
                 });
             }
 
+            // 2025-10-07 チャットウィンドウ調整機能不活化
             // 内部iframe内chatウィンドウの幅の最小を0に
-            function addChatStyle() {
-                const chatframe = d.querySelector('#chatframe')
-                if (chatframe && chatframe.contentDocument.head.getElementsByClassName('ysc-chat-style').length === 0 && chatframe.contentDocument.head.children.length !== 0) {
-                    chatframe.contentDocument.head.insertAdjacentElement(
-                        'beforeend',
-                        Util.createElement('style', {
-                            'class': 'ysc-chat-style',
-                            'innerText': 'yt-live-chat-app{min-width:0}'
-                        })
-                    )
-                    // console.log('added chat style')
-                }
-            }
+            //             function addChatStyle() {
+            //                 const chatframe = d.querySelector('#chatframe')
+            //                 if (chatframe && chatframe.contentDocument.head.getElementsByClassName('ysc-chat-style').length === 0 && chatframe.contentDocument.head.children.length !== 0) {
+            //                     chatframe.contentDocument.head.insertAdjacentElement(
+            //                         'beforeend',
+            //                         Util.createElement('style', {
+            //                             'class': 'ysc-chat-style',
+            //                             'innerText': 'yt-live-chat-app{min-width:0}'
+            //                         })
+            //                     )
+            //                     // console.log('added chat style')
+            //                 }
+            //             }
 
-            const mo = new MutationObserver((mutations) => {
-                mutations.forEach((mutation) => {
-                    for (const node of mutation.addedNodes) {
-                        Util.tryTask(addChatStyle, () => d.querySelector('#chatframe'), 1000, 30)
-                    }
-                });
-            })
+            //             const mo = new MutationObserver((mutations) => {
+            //                 mutations.forEach((mutation) => {
+            //                     for (const node of mutation.addedNodes) {
+            //                         Util.tryTask(addChatStyle, () => d.querySelector('#chatframe'), 1000, 30)
+            //                     }
+            //                 });
+            //             })
+
+            // 2025-10-07 チャットウィンドウ調整機能不活化
+            /*
             Util.tryTask(() => {
                 // console.log('try adding chat style')
                 mo.observe(d.querySelector('#show-hide-button'), { childList: true, subtree: true })
-                addChatStyle()
+                addChatStyle();
             }, () => (d.querySelector('#chatframe') && d.querySelector('#show-hide-button')), 1000, 30)
-
+*/
         }
-        Util.tryTask(initChatWindow, YT.getChat, 1000, 30);
+        // 2025-10-07 チャットウィンドウ調整機能不活化
+        //      Util.tryTask(initChatWindow, YT.getChat, 1000, 30);
     }
 
     function initChatWindow() {
@@ -96,7 +107,7 @@
             'min': 0.1,
             'max': 1.0,
             'step': 0.01,
-            'oninput': function() { setOpacity(this.value); },
+            'oninput': function () { setOpacity(this.value); },
             'value': initial_opacity,
         });
 
@@ -109,7 +120,7 @@
 
         chat.insertBefore(Util.createElement('div', {
             'class': 'ysc-controller',
-            'children': [ opacity_slider, side_menu ],
+            'children': [opacity_slider, side_menu],
         }), d.getElementById('show-hide-button'));
 
         addResizeHandle(chat);
@@ -132,8 +143,8 @@
         const api = YT.getAPI(), chat = YT.getChat(), bottom = d.getElementsByClassName('ytp-chrome-bottom')[0];
         if (chat && chat.classList.contains('ysc-chat-style') && api && bottom) {
             const player_rect = api.getBoundingClientRect(),
-                  bottom_rect = bottom.getBoundingClientRect(),
-                  cs = chat.style;
+                bottom_rect = bottom.getBoundingClientRect(),
+                cs = chat.style;
             cs.setProperty('--ysc-chat-top', (player_rect.top + Util.getScrollTop()) + 'px');
             cs.setProperty('--ysc-chat-height', (player_rect.height - bottom_rect.height) + 'px');
             //console.log('width: "', cs.getPropertyValue('--ysc-chat-width'), '","', GM_getValue('YSC_CHAT_WINDOW_WIDTH'), '"');
@@ -178,42 +189,42 @@
         if (!menu_list || !Array.isArray(menu_list)) menu_list = [];
 
         const initial_label = options.initial_label || menu_list[0] && menu_list[0].label || '',
-              front = Util.createElement('div', {
-                  'class': 'select-selected',
-                  'innerHTML': initial_label,
-                  'onclick': function() {
-                      this.nextSibling.classList.toggle('select-hide');
-                      this.classList.toggle('select-arrow-active');
-                  }
-              }),
-              closeFront = () => {
-                  front.nextSibling.classList.add('select-hide');
-                  front.classList.remove('select-arrow-active');
-              },
-              back = Util.createElement('div', {
-                  'class': 'select-items select-hide',
-                  'children': menu_list.map(menu => Util.createElement('div', {
-                      'innerHTML': menu.label || '',
-                      'class': menu.label === initial_label ? 'same-as-selected' : '',
-                      'onclick': !Util.checkType(menu.onclick, 'function') ? null : (onclick => {
-                          return function() {
-                              closeFront();
-                              if (YT.isTheater() || YT.isFullscreen() || this.innerHTML === initial_label) {
-                                  front.innerHTML = this.innerHTML;
-                                  onclick();
-                                  Array.from(this.parentNode.getElementsByClassName('same-as-selected')).forEach(node => {
-                                      node.classList.remove('same-as-selected');
-                                  });
-                                  this.classList.add('same-as-selected');
-                              }
-                          };
-                      })(menu.onclick),
-                  }))
-              }),
-              box = Util.createElement('div', {
-                  'class': 'custom-select ysc-controll',
-                  'children': [ front, back ],
-              });
+            front = Util.createElement('div', {
+                'class': 'select-selected',
+                'innerHTML': initial_label,
+                'onclick': function () {
+                    this.nextSibling.classList.toggle('select-hide');
+                    this.classList.toggle('select-arrow-active');
+                }
+            }),
+            closeFront = () => {
+                front.nextSibling.classList.add('select-hide');
+                front.classList.remove('select-arrow-active');
+            },
+            back = Util.createElement('div', {
+                'class': 'select-items select-hide',
+                'children': menu_list.map(menu => Util.createElement('div', {
+                    'innerHTML': menu.label || '',
+                    'class': menu.label === initial_label ? 'same-as-selected' : '',
+                    'onclick': !Util.checkType(menu.onclick, 'function') ? null : (onclick => {
+                        return function () {
+                            closeFront();
+                            if (YT.isTheater() || YT.isFullscreen() || this.innerHTML === initial_label) {
+                                front.innerHTML = this.innerHTML;
+                                onclick();
+                                Array.from(this.parentNode.getElementsByClassName('same-as-selected')).forEach(node => {
+                                    node.classList.remove('same-as-selected');
+                                });
+                                this.classList.add('same-as-selected');
+                            }
+                        };
+                    })(menu.onclick),
+                }))
+            }),
+            box = Util.createElement('div', {
+                'class': 'custom-select ysc-controll',
+                'children': [front, back],
+            });
 
         (options.box_keeping_area && options.box_keeping_area.addEventListener ? options.box_keeping_area : box).addEventListener('mouseleave', () => {
             if (!back.classList.contains('select-hide')) closeFront();
@@ -233,17 +244,17 @@
 
                     let is_ticking = false;
                     const is_left = target.classList.contains('ysc-left-chat'),
-                          width_base = parseInt(getComputedStyle(target).width) + (is_left ? -e.x : e.x),
-                          resize_handler = e => {
-                              if (!is_ticking) {
-                                  requestAnimationFrame(() => {
-                                      //target.style.width = (width_base + (is_left ? e.x : -e.x)) + 'px';
-                                      target.style.setProperty('--ysc-chat-width', (width_base + (is_left ? e.x : -e.x)) + 'px');
-                                      is_ticking = false;
-                                  });
-                                  is_ticking = true;
-                              }
-                          };
+                        width_base = parseInt(getComputedStyle(target).width) + (is_left ? -e.x : e.x),
+                        resize_handler = e => {
+                            if (!is_ticking) {
+                                requestAnimationFrame(() => {
+                                    //target.style.width = (width_base + (is_left ? e.x : -e.x)) + 'px';
+                                    target.style.setProperty('--ysc-chat-width', (width_base + (is_left ? e.x : -e.x)) + 'px');
+                                    is_ticking = false;
+                                });
+                                is_ticking = true;
+                            }
+                        };
 
                     window.addEventListener('mousemove', resize_handler, { passive: true });
                     window.addEventListener('mouseup', e => {
@@ -258,7 +269,7 @@
             }));
         }
     }
-})(document, (function(d) {
+})(document, (function (d) {
     const toString = Object.prototype.toString;
     function checkType(obj, type) {
         return toString.call(obj).slice(8, -1).toLowerCase() === type;
@@ -290,10 +301,10 @@
     const task_dict = {};
     function tryTask(/* task, condition, interval, retry_limit */) {
         let retry_count = 0;
-        const task = checkType(arguments[0], 'function') ? arguments[0] : (() => {}),
-              condition = checkType(arguments[1], 'function') ? arguments[1] : (() => true),
-              interval = checkType(arguments[2], 'number') ? arguments[2] : 1000,
-              retry_limit = checkType(arguments[3], 'number') ? arguments[3] : 100;
+        const task = checkType(arguments[0], 'function') ? arguments[0] : (() => { }),
+            condition = checkType(arguments[1], 'function') ? arguments[1] : (() => true),
+            interval = checkType(arguments[2], 'number') ? arguments[2] : 1000,
+            retry_limit = checkType(arguments[3], 'number') ? arguments[3] : 100;
 
         //console.log('task state:', task.name, task_dict[task]);
         if (task_dict[task] != null) return;
@@ -315,27 +326,41 @@
         }, interval);
     }
 
-    return { checkType, createElement, getScrollTop, tryTask };
-})(document), (function(d) {
+    function test(YT) {
+        console.log("getAPI", YT.getAPI());
+        console.log("getVideo", YT.getVideo());
+        console.log("getChat", YT.getChat());
+        console.log("getChatlist", YT.getChatlist());
+        console.log("getPageManager", YT.getPageManager());
+        console.log("getChannelID", YT.getChannelID());
+        console.log("getPlaybackRateKey", YT.getPlaybackRateKey());
+        console.log("isTheater", YT.isTheater());
+        console.log("isMiniPlayer", YT.isMiniPlayer());
+        console.log("isLive", YT.isLive());
+        console.log("isFullscreen", YT.isFullscreen());
+    }
+
+    return { checkType, createElement, getScrollTop, tryTask, test };
+})(document), (function (d) {
     /**
      * @returns {string} channel ID
      */
     function _getChannelID(t) { return (t = d.querySelector('ytd-video-owner-renderer > a')) && (t = t.href.match(/[^/]+$/)) && t[0] };
     return {
-        getAPI: function() { return d.getElementById('movie_player'); },
-        getVideo: function() { return d.getElementsByTagName('video')[0]; },
-        getChat: function() { return d.getElementById('chat'); },
-        getChatlist: function(t) {
+        getAPI: function () { return d.getElementById('movie_player'); },
+        getVideo: function () { return d.getElementsByTagName('video')[0]; },
+        getChat: function () { return d.getElementById('chat'); },
+        getChatlist: function (t) {
             return (t = d.getElementById('chatframe')) && t.contentDocument.getElementsByClassName('yt-live-chat-item-list-renderer')[5];
         },
-        getPageManager: function() { return d.getElementsByClassName('ytd-page-manager')[0]; },
+        getPageManager: function () { return d.getElementsByClassName('ytd-page-manager')[0]; },
         getChannelID: _getChannelID,
-        getPlaybackRateKey: function(t) { return (t = _getChannelID()) && ('YSC_PLAYBACKRATE_' + t) },
+        getPlaybackRateKey: function (t) { return (t = _getChannelID()) && ('YSC_PLAYBACKRATE_' + t) },
 
-        isTheater: function(t) { return (t = d.getElementsByTagName('ytd-watch-flexy')[0]) && t.theater; },
-        isMiniPlayer: function(t) { return (t = d.getElementsByTagName('ytd-miniplayer')[0]) && t.active; },
-        isLive: function() { return d.getElementsByClassName('ytp-live').length > 0; },
-        isFullscreen: function() { return d.fullscreen; },
+        isTheater: function (t) { return (t = d.getElementsByTagName('ytd-watch-flexy')[0]) && t.theater; },
+        isMiniPlayer: function (t) { return (t = d.getElementsByTagName('ytd-miniplayer')[0]) && t.active; },
+        isLive: function () { return d.getElementsByClassName('ytp-live').length > 0; },
+        isFullscreen: function () { return d.fullscreen; },
     }
 })(document),
     // css
