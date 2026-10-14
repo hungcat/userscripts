@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Youtube Side Chat
 // @namespace    https://github.com/hungcat/userscripts/
-// @version      0.4.9
-// @description  my livechat window
+// @version      0.5.0
+// @description  Per-channel playback speed and adjustable side chat for YouTube
 // @author       hungcat
 // @match        *://www.youtube.com/*
 // @match        *://www.google.com/search*
@@ -12,115 +12,80 @@
 // @grant        GM_addStyle
 // @grant        GM_setValue
 // @grant        GM_getValue
+// @grant        unsafeWindow
 // @updateURL    https://github.com/hungcat/userscripts/raw/main/youtube.com_youtube-side-chat.user.js
 // @downloadURL  https://github.com/hungcat/userscripts/raw/main/youtube.com_youtube-side-chat.user.js
 // @supportURL   https://github.com/hungcat/userscripts/
 // ==/UserScript==
 
-console.log('hello');
-
 (function (d, Util, YT, cssText) {
     'use strict';
 
-    console.log('hello wprld');
-    // css
     GM_addStyle(cssText);
+    let lastCompatibilityWarning = '';
 
-    d.addEventListener('yt-navigate-finish', e => {
-        //console.log('youtube navigation finished');
-        Util.tryTask(playerReady, YT.getAPI, 1000, 30);
+    d.addEventListener('yt-navigate-finish', () => {
+        scheduleCompatibilityCheck();
+        Util.tryTask(playerReady, () => YT.getAPI() && YT.getVideo(), 1000, 30);
     });
 
-    Util.tryTask(playerReady, YT.getAPI, 1000, 30);
-    //playerReady();
+    scheduleCompatibilityCheck();
+    Util.tryTask(playerReady, () => YT.getAPI() && YT.getVideo(), 1000, 30);
+    unsafeWindow.YSC = Object.freeze({
+        version: '0.5.0',
+        inspect: inspectCompatibility,
+        runTests: runSelfTests,
+    });
 
-    // do at the end of function
     function playerReady() {
-
-        Util.test(YT);
-
+        inspectCompatibility();
         const api = YT.getAPI();
-        //console.log('api:', api);
         if (api) {
-            // console.log('channel playbackrate', YT.getPlaybackRateKey(), GM_getValue(YT.getPlaybackRateKey()));
-            api.setPlaybackRate(YT.isLive() ? 1 : GM_getValue(YT.getPlaybackRateKey(), 2));
-            // console.log('set playback rate to ' + api.getPlaybackRate());
+            const playbackRateKey = YT.getPlaybackRateKey();
+            if (playbackRateKey) {
+                const savedRate = Number(GM_getValue(playbackRateKey, 2));
+                api.setPlaybackRate(YT.isLive() ? 1 : (Number.isFinite(savedRate) && savedRate > 0 ? savedRate : 2));
+            }
             const video = YT.getVideo();
-            //console.log('YSC_PLAYBACKRATE: ' + video.dataset.YSC_SETRATECHANGE)
             if (video && !video.dataset.YSC_SETRATECHANGE) {
                 video.dataset.YSC_SETRATECHANGE = true;
-                video.addEventListener('ratechange', function (e) {
-                    // console.log('ratechanged', YT.isLive(), YT.getPlaybackRateKey(), this.playbackRate);
-                    if (!YT.isLive()) GM_setValue(YT.getPlaybackRateKey(), this.playbackRate);
+                video.addEventListener('ratechange', function () {
+                    const key = YT.getPlaybackRateKey();
+                    if (!YT.isLive() && key) GM_setValue(key, this.playbackRate);
                 });
             }
-
-            // 2025-10-07 チャットウィンドウ調整機能不活化
-            // 内部iframe内chatウィンドウの幅の最小を0に
-            //             function addChatStyle() {
-            //                 const chatframe = d.querySelector('#chatframe')
-            //                 if (chatframe && chatframe.contentDocument.head.getElementsByClassName('ysc-chat-style').length === 0 && chatframe.contentDocument.head.children.length !== 0) {
-            //                     chatframe.contentDocument.head.insertAdjacentElement(
-            //                         'beforeend',
-            //                         Util.createElement('style', {
-            //                             'class': 'ysc-chat-style',
-            //                             'innerText': 'yt-live-chat-app{min-width:0}'
-            //                         })
-            //                     )
-            //                     // console.log('added chat style')
-            //                 }
-            //             }
-
-            //             const mo = new MutationObserver((mutations) => {
-            //                 mutations.forEach((mutation) => {
-            //                     for (const node of mutation.addedNodes) {
-            //                         Util.tryTask(addChatStyle, () => d.querySelector('#chatframe'), 1000, 30)
-            //                     }
-            //                 });
-            //             })
-
-            // 2025-10-07 チャットウィンドウ調整機能不活化
-            /*
-            Util.tryTask(() => {
-                // console.log('try adding chat style')
-                mo.observe(d.querySelector('#show-hide-button'), { childList: true, subtree: true })
-                addChatStyle();
-            }, () => (d.querySelector('#chatframe') && d.querySelector('#show-hide-button')), 1000, 30)
-*/
+            Util.tryTask(initChatWindow, () => YT.getChat() && d.getElementById('show-hide-button'), 500, 30);
         }
-        // 2025-10-07 チャットウィンドウ調整機能不活化
-        //      Util.tryTask(initChatWindow, YT.getChat, 1000, 30);
     }
 
     function initChatWindow() {
         const chat = YT.getChat();
 
-        if (!chat || chat.getElementsByClassName('ysc-controller').length > 0 || chat.getElementsByTagName('ytd-message-renderer').length > 0) return;
-        console.log('YSC: initChatWindow');
+        if (!chat || chat.getElementsByClassName('ysc-controller').length > 0) return;
 
-        const initial_opacity = GM_getValue('YSC_OPACITY', 0.8);
-        chat.style.setProperty('--ysc-chat-opacity', initial_opacity);
+        const initialOpacity = clamp(Number(GM_getValue('YSC_OPACITY', 0.8)), 0.1, 1);
+        chat.style.setProperty('--ysc-chat-opacity', initialOpacity);
 
-        const opacity_slider = Util.createElement('input', {
+        const opacitySlider = Util.createElement('input', {
             'type': 'range',
-            'class': 'ysc-slider ysc-controll ysc-controll-flex1',
+            'class': 'ysc-slider ysc-control ysc-control-flex1',
             'min': 0.1,
             'max': 1.0,
             'step': 0.01,
             'oninput': function () { setOpacity(this.value); },
-            'value': initial_opacity,
+            'value': initialOpacity,
         });
 
-        const initial_label = window.innerHeight < window.innerWidth && (YT.isTheater() || YT.isFullscreen()) ? 'Left' : 'Default';
-        const side_menu = createSelectBox([
+        const initialLabel = 'Default';
+        const sideMenu = createSelectBox([
             { 'label': 'Default', 'onclick': e => { toggleYSCStyle(false); } },
             { 'label': 'Left', 'onclick': e => { toggleYSCStyle(true); changeSide(false); } },
             { 'label': 'Right', 'onclick': e => { toggleYSCStyle(true); changeSide(true); } },
-        ], { initial_label });
+        ], { initial_label: initialLabel });
 
         chat.insertBefore(Util.createElement('div', {
             'class': 'ysc-controller',
-            'children': [opacity_slider, side_menu],
+            'children': [opacitySlider, sideMenu],
         }), d.getElementById('show-hide-button'));
 
         addResizeHandle(chat);
@@ -142,21 +107,18 @@ console.log('hello');
     function updateChatSize() {
         const api = YT.getAPI(), chat = YT.getChat(), bottom = d.getElementsByClassName('ytp-chrome-bottom')[0];
         if (chat && chat.classList.contains('ysc-chat-style') && api && bottom) {
-            const player_rect = api.getBoundingClientRect(),
-                bottom_rect = bottom.getBoundingClientRect(),
-                cs = chat.style;
-            cs.setProperty('--ysc-chat-top', (player_rect.top + Util.getScrollTop()) + 'px');
-            cs.setProperty('--ysc-chat-height', (player_rect.height - bottom_rect.height) + 'px');
-            //console.log('width: "', cs.getPropertyValue('--ysc-chat-width'), '","', GM_getValue('YSC_CHAT_WINDOW_WIDTH'), '"');
-            cs.setProperty('--ysc-chat-width', GM_getValue('YSC_CHAT_WINDOW_WIDTH', 264) + 'px');
+            const playerRect = api.getBoundingClientRect(),
+                bottomRect = bottom.getBoundingClientRect(),
+                chatWidth = Number(GM_getValue('YSC_CHAT_WINDOW_WIDTH', 264));
+            chat.style.setProperty('--ysc-chat-top', (playerRect.top + Util.getScrollTop()) + 'px');
+            chat.style.setProperty('--ysc-chat-height', Math.max(100, playerRect.height - bottomRect.height) + 'px');
+            chat.style.setProperty('--ysc-chat-width', clamp(chatWidth, 180, Math.max(180, window.innerWidth * 0.8)) + 'px');
         }
     }
     window.addEventListener('resize', updateChatSize, { passive: true });
 
-    const last_selected = d.getElementsByClassName('same-as-selected');
     function updateChatWindow() {
         updateChatSize();
-        if (last_selected[0] && Util.checkType(last_selected[0].click, 'function')) last_selected[0].click();
     }
     d.addEventListener('fullscreenchange', updateChatWindow);
 
@@ -177,11 +139,78 @@ console.log('hello');
     function setOpacity(opacity) {
         const chat = YT.getChat();
         if (chat) {
-            chat.style.setProperty('--ysc-chat-opacity', opacity);
-            GM_setValue('YSC_OPACITY', opacity);
+            const value = clamp(Number(opacity), 0.1, 1);
+            chat.style.setProperty('--ysc-chat-opacity', value);
+            GM_setValue('YSC_OPACITY', value);
         }
     }
 
+    function clamp(value, min, max) {
+        if (!Number.isFinite(value)) return min;
+        return Math.min(max, Math.max(min, value));
+    }
+
+    function inspectCompatibility() {
+        if (!/\/(watch|live)\b/.test(window.location.pathname)) return null;
+
+        const checks = {
+            player: Boolean(YT.getAPI()),
+            video: Boolean(YT.getVideo()),
+            watchPage: Boolean(d.querySelector('ytd-watch-flexy')),
+            chatContainer: Boolean(YT.getChat()),
+            chatControls: Boolean(d.getElementById('show-hide-button')),
+        };
+        const report = {
+            version: '0.5.0',
+            url: window.location.href,
+            features: {
+                playbackRate: checks.player && checks.video,
+                sideChat: checks.watchPage && checks.chatContainer && checks.chatControls,
+            },
+            selectors: checks,
+        };
+        const missingCore = ['player', 'video'].filter(name => !checks[name]);
+        if (missingCore.length) {
+            const warningKey = window.location.pathname + ':' + missingCore.join(',');
+            if (warningKey !== lastCompatibilityWarning) {
+                console.warn('[YSC] YouTube DOM compatibility check failed. Missing:', missingCore.join(', '), report);
+                lastCompatibilityWarning = warningKey;
+            }
+        } else {
+            lastCompatibilityWarning = '';
+        }
+        if (window.__YSC_DEBUG__) console.info('[YSC] compatibility report', report);
+        return report;
+    }
+
+    function scheduleCompatibilityCheck() {
+        window.setTimeout(inspectCompatibility, 5000);
+    }
+
+    function runSelfTests() {
+        const tests = [
+            ['clamp keeps in-range values', () => clamp(0.5, 0.1, 1) === 0.5],
+            ['clamp enforces lower bound', () => clamp(-1, 0.1, 1) === 0.1],
+            ['clamp enforces upper bound', () => clamp(2, 0.1, 1) === 1],
+            ['clamp handles invalid values', () => clamp(NaN, 0.1, 1) === 0.1],
+            ['channel IDs are read from channel URLs', () => YT.parseChannelID('https://www.youtube.com/channel/UCtest123') === 'UCtest123'],
+            ['channel handles are read from channel URLs', () => YT.parseChannelID('https://www.youtube.com/@example') === '@example'],
+        ];
+        const results = tests.map(([name, test]) => {
+            try {
+                const passed = test();
+                return { name, passed, error: passed ? '' : 'Assertion failed' };
+            } catch (error) {
+                return { name, passed: false, error: error.message };
+            }
+
+
+        });
+        const failed = results.filter(result => !result.passed);
+        console.table(results);
+        console.info(`[YSC] self-tests: ${results.length - failed.length}/${results.length} passed`);
+        return { passed: failed.length === 0, results };
+    }
 
     // menu_list: []{ label: string, onclick: function }
     function createSelectBox(menu_list, options) {
@@ -222,7 +251,7 @@ console.log('hello');
                 }))
             }),
             box = Util.createElement('div', {
-                'class': 'custom-select ysc-controll',
+                'class': 'custom-select ysc-control',
                 'children': [front, back],
             });
 
@@ -239,30 +268,39 @@ console.log('hello');
         if (target && target.getElementsByClassName('resize-handle').length === 0) {
             target.appendChild(Util.createElement('div', {
                 'class': 'resize-handle',
-                'onmousedown': e => {
+                'onpointerdown': e => {
                     e.stopPropagation();
 
                     let is_ticking = false;
-                    const is_left = target.classList.contains('ysc-left-chat'),
-                        width_base = parseInt(getComputedStyle(target).width) + (is_left ? -e.x : e.x),
-                        resize_handler = e => {
+                    const isLeft = target.classList.contains('ysc-left-chat'),
+                        startX = e.clientX,
+                        startWidth = target.getBoundingClientRect().width,
+                        resizeHandler = moveEvent => {
                             if (!is_ticking) {
                                 requestAnimationFrame(() => {
-                                    //target.style.width = (width_base + (is_left ? e.x : -e.x)) + 'px';
-                                    target.style.setProperty('--ysc-chat-width', (width_base + (is_left ? e.x : -e.x)) + 'px');
+                                    const direction = isLeft ? 1 : -1;
+                                    const width = clamp(startWidth + (moveEvent.clientX - startX) * direction, 180, window.innerWidth * 0.8);
+                                    target.style.setProperty('--ysc-chat-width', width + 'px');
                                     is_ticking = false;
                                 });
                                 is_ticking = true;
                             }
                         };
 
-                    window.addEventListener('mousemove', resize_handler, { passive: true });
-                    window.addEventListener('mouseup', e => {
-                        e.stopPropagation();
-                        window.removeEventListener('mousemove', resize_handler);
+                    const stopResize = () => {
+                        window.removeEventListener('pointermove', resizeHandler);
+                        window.removeEventListener('pointerup', onPointerUp);
+                        window.removeEventListener('pointercancel', stopResize);
                         target.classList.remove('is-resizing');
-                        GM_setValue('YSC_CHAT_WINDOW_WIDTH', parseFloat(getComputedStyle(target).width))
-                    }, { once: true, passive: true });
+                        GM_setValue('YSC_CHAT_WINDOW_WIDTH', target.getBoundingClientRect().width);
+                    };
+                    const onPointerUp = event => {
+                        event.stopPropagation();
+                        stopResize();
+                    };
+                    window.addEventListener('pointermove', resizeHandler, { passive: true });
+                    window.addEventListener('pointerup', onPointerUp, { once: true, passive: true });
+                    window.addEventListener('pointercancel', stopResize, { once: true, passive: true });
 
                     target.classList.add('is-resizing');
                 },
@@ -326,39 +364,34 @@ console.log('hello');
         }, interval);
     }
 
-    function test(YT) {
-        console.log("getAPI", YT.getAPI());
-        console.log("getVideo", YT.getVideo());
-        console.log("getChat", YT.getChat());
-        console.log("getChatlist", YT.getChatlist());
-        console.log("getPageManager", YT.getPageManager());
-        console.log("getChannelID", YT.getChannelID());
-        console.log("getPlaybackRateKey", YT.getPlaybackRateKey());
-        console.log("isTheater", YT.isTheater());
-        console.log("isMiniPlayer", YT.isMiniPlayer());
-        console.log("isLive", YT.isLive());
-        console.log("isFullscreen", YT.isFullscreen());
+    return { checkType, createElement, getScrollTop, tryTask };
+})(document), (function (d) {
+    function parseChannelID(href) {
+        try {
+            const pathname = new URL(href, window.location.href).pathname;
+            const match = pathname.match(/\/(?:channel|user)\/([^/]+)|\/(@[^/]+)/);
+            return match ? (match[1] || match[2]) : null;
+        } catch (error) {
+            return null;
+        }
     }
 
-    return { checkType, createElement, getScrollTop, tryTask, test };
-})(document), (function (d) {
     /**
      * @returns {string} channel ID
      */
-    function _getChannelID(t) { return (t = d.querySelector('ytd-video-owner-renderer > a')) && (t = t.href.match(/[^/]+$/)) && t[0] };
+    function _getChannelID() {
+        const ownerLink = d.querySelector('ytd-video-owner-renderer > a');
+        return ownerLink ? parseChannelID(ownerLink.href) : null;
+    }
     return {
         getAPI: function () { return d.getElementById('movie_player'); },
         getVideo: function () { return d.getElementsByTagName('video')[0]; },
         getChat: function () { return d.getElementById('chat'); },
-        getChatlist: function (t) {
-            return (t = d.getElementById('chatframe')) && t.contentDocument.getElementsByClassName('yt-live-chat-item-list-renderer')[5];
-        },
-        getPageManager: function () { return d.getElementsByClassName('ytd-page-manager')[0]; },
         getChannelID: _getChannelID,
+        parseChannelID,
         getPlaybackRateKey: function (t) { return (t = _getChannelID()) && ('YSC_PLAYBACKRATE_' + t) },
 
         isTheater: function (t) { return (t = d.getElementsByTagName('ytd-watch-flexy')[0]) && t.theater; },
-        isMiniPlayer: function (t) { return (t = d.getElementsByTagName('ytd-miniplayer')[0]) && t.active; },
         isLive: function () { return d.getElementsByClassName('ytp-live').length > 0; },
         isFullscreen: function () { return d.fullscreen; },
     }
@@ -374,8 +407,8 @@ console.log('hello');
     'ytd-watch-flexy[theater] .ysc-right-chat { right: 0 } .ysc-right-chat > .resize-handle { right: 100%; }' +
     '.ysc-controller { display: none; }' +
     'ytd-watch-flexy[theater] .ysc-controller { display: flex; background: white; }' +
-    '.ysc-controll { margin: 2px; }' +
-    '.ysc-controll-flex1 { flex: 1; }' +
+    '.ysc-control { margin: 2px; }' +
+    '.ysc-control-flex1 { flex: 1; }' +
 
     'ytd-watch-flexy[theater] .ysc-chat-style > .resize-handle { cursor: w-resize; position: absolute; top: 0; height: 100%; width: 5px; background: grey; }' +
     '.is-resizing { pointer-events: none; }' +
