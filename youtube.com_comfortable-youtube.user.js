@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Comfortable YouTube
 // @namespace    https://github.com/hungcat/userscripts/
-// @version      0.6.1
+// @version      0.7.0
 // @description  Remember playback speed for each channel and make YouTube more comfortable to watch
 // @author       hungcat
 // @match        *://www.youtube.com/*
@@ -23,13 +23,13 @@
 
     d.addEventListener('yt-navigate-finish', () => {
         scheduleCompatibilityCheck();
-        Util.tryTask(playerReady, () => YT.getAPI() && YT.getVideo(), 1000, 30);
+        Util.tryTask(playerReady, YT.getVideo, 1000, 30);
     });
 
     scheduleCompatibilityCheck();
-    Util.tryTask(playerReady, () => YT.getAPI() && YT.getVideo(), 1000, 30);
+    Util.tryTask(playerReady, YT.getVideo, 1000, 30);
     unsafeWindow.CY = Object.freeze({
-        version: '0.6.1',
+        version: '0.7.0',
         inspect: inspectCompatibility,
         runTests: runSelfTests,
     });
@@ -37,40 +37,47 @@
     function playerReady() {
         inspectCompatibility();
         const api = YT.getAPI();
-        if (!api) return;
-
+        const video = YT.getVideo();
+        if (!video) return;
         const playbackRateKey = YT.getPlaybackRateKey();
         const savedRate = playbackRateKey ? GM_getValue(playbackRateKey, 2) : 2;
-        api.setPlaybackRate(resolvePlaybackRate(playbackRateKey, YT.isLive(), savedRate));
+        applyPlaybackRate(api, video, resolvePlaybackRate(playbackRateKey, YT.isLive(), savedRate), isShortsPage());
 
-        const video = YT.getVideo();
         if (video && !video.dataset.CY_SETRATECHANGE) {
             video.dataset.CY_SETRATECHANGE = true;
             video.addEventListener('ratechange', function () {
                 const key = YT.getPlaybackRateKey();
                 if (!YT.isLive() && key) GM_setValue(key, this.playbackRate);
             });
+            video.addEventListener('loadedmetadata', () => {
+                const key = YT.getPlaybackRateKey();
+                const rate = key ? GM_getValue(key, 2) : 2;
+                applyPlaybackRate(YT.getAPI(), video, resolvePlaybackRate(key, YT.isLive(), rate), isShortsPage());
+            });
         }
     }
 
     function inspectCompatibility() {
-        if (!/\/(watch|live)\b/.test(window.location.pathname)) return null;
+        if (!/\/(watch|live|shorts)\b/.test(window.location.pathname)) return null;
 
         const selectors = {
             player: Boolean(YT.getAPI()),
             video: Boolean(YT.getVideo()),
             channelLink: Boolean(YT.getChannelID()),
         };
+        const shorts = isShortsPage();
         const report = {
-            version: '0.6.1',
+            version: '0.7.0',
             url: window.location.href,
+            pageType: shorts ? 'shorts' : 'standard',
             features: {
-                playbackRate: selectors.player && selectors.video,
+                playbackRate: selectors.video && (shorts || selectors.player),
                 perChannelSettings: selectors.channelLink,
             },
             selectors,
         };
-        const missingCore = ['player', 'video'].filter(name => !selectors[name]);
+        const missingCore = ['video'].filter(name => !selectors[name]);
+        if (!shorts && !selectors.player) missingCore.push('player');
         if (missingCore.length) {
             const warningKey = window.location.pathname + ':' + missingCore.join(',');
             if (warningKey !== lastCompatibilityWarning) {
@@ -94,7 +101,21 @@
         return Number.isFinite(rate) && rate > 0 ? rate : 2;
     }
 
+    function isShortsPage() {
+        return /^\/shorts(?:\/|$)/.test(window.location.pathname);
+    }
+
+    function applyPlaybackRate(api, video, rate, shorts) {
+        if (shorts || !api || typeof api.setPlaybackRate !== 'function') {
+            video.playbackRate = rate;
+        } else {
+            api.setPlaybackRate(rate);
+        }
+    }
+
     function runSelfTests() {
+        const testVideo = { playbackRate: 1 };
+        const testPlayer = { setPlaybackRate(rate) { this.playbackRate = rate; } };
         const tests = [
             ['channel IDs are read from channel URLs', () => YT.parseChannelID('https://www.youtube.com/channel/UCtest123') === 'UCtest123'],
             ['channel handles are read from channel URLs', () => YT.parseChannelID('https://www.youtube.com/@example') === '@example'],
@@ -102,6 +123,15 @@
             ['first-time channels default to 2x', () => resolvePlaybackRate('CY_PLAYBACKRATE_new', false, 2) === 2],
             ['saved channel speed is restored', () => resolvePlaybackRate('CY_PLAYBACKRATE_saved', false, 1.5) === 1.5],
             ['live streams stay at 1x', () => resolvePlaybackRate('CY_PLAYBACKRATE_live', true, 2) === 1],
+            ['shorts use the HTML video playback rate', () => {
+                applyPlaybackRate(testPlayer, testVideo, 2, true);
+                return testVideo.playbackRate === 2 && testPlayer.playbackRate === undefined;
+            }],
+            ['video fallback works without the YouTube player API', () => {
+                testVideo.playbackRate = 1;
+                applyPlaybackRate(null, testVideo, 2, false);
+                return testVideo.playbackRate === 2;
+            }],
         ];
         const results = tests.map(([name, test]) => {
             try {
