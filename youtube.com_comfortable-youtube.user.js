@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Comfortable YouTube
 // @namespace    https://github.com/hungcat/userscripts/
-// @version      0.6.0
+// @version      0.6.1
 // @description  Remember playback speed for each channel and make YouTube more comfortable to watch
 // @author       hungcat
 // @match        *://www.youtube.com/*
@@ -29,7 +29,7 @@
     scheduleCompatibilityCheck();
     Util.tryTask(playerReady, () => YT.getAPI() && YT.getVideo(), 1000, 30);
     unsafeWindow.CY = Object.freeze({
-        version: '0.6.0',
+        version: '0.6.1',
         inspect: inspectCompatibility,
         runTests: runSelfTests,
     });
@@ -40,10 +40,8 @@
         if (!api) return;
 
         const playbackRateKey = YT.getPlaybackRateKey();
-        if (playbackRateKey) {
-            const savedRate = Number(GM_getValue(playbackRateKey, 2));
-            api.setPlaybackRate(YT.isLive() ? 1 : (Number.isFinite(savedRate) && savedRate > 0 ? savedRate : 2));
-        }
+        const savedRate = playbackRateKey ? GM_getValue(playbackRateKey, 2) : 2;
+        api.setPlaybackRate(resolvePlaybackRate(playbackRateKey, YT.isLive(), savedRate));
 
         const video = YT.getVideo();
         if (video && !video.dataset.CY_SETRATECHANGE) {
@@ -64,7 +62,7 @@
             channelLink: Boolean(YT.getChannelID()),
         };
         const report = {
-            version: '0.6.0',
+            version: '0.6.1',
             url: window.location.href,
             features: {
                 playbackRate: selectors.player && selectors.video,
@@ -90,11 +88,20 @@
         window.setTimeout(inspectCompatibility, 5000);
     }
 
+    function resolvePlaybackRate(playbackRateKey, isLive, savedRate) {
+        if (isLive) return 1;
+        const rate = Number(playbackRateKey ? savedRate : 2);
+        return Number.isFinite(rate) && rate > 0 ? rate : 2;
+    }
+
     function runSelfTests() {
         const tests = [
             ['channel IDs are read from channel URLs', () => YT.parseChannelID('https://www.youtube.com/channel/UCtest123') === 'UCtest123'],
             ['channel handles are read from channel URLs', () => YT.parseChannelID('https://www.youtube.com/@example') === '@example'],
             ['invalid channel URLs are rejected', () => YT.parseChannelID('not a URL') === null],
+            ['first-time channels default to 2x', () => resolvePlaybackRate('CY_PLAYBACKRATE_new', false, 2) === 2],
+            ['saved channel speed is restored', () => resolvePlaybackRate('CY_PLAYBACKRATE_saved', false, 1.5) === 1.5],
+            ['live streams stay at 1x', () => resolvePlaybackRate('CY_PLAYBACKRATE_live', true, 2) === 1],
         ];
         const results = tests.map(([name, test]) => {
             try {
